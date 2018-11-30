@@ -1,8 +1,19 @@
+#ifndef _LEAK_TRACE_CC
+#define _LEAK_TRACE_CC
 #include "config.h"
 // At least for gcc on Linux/i386 and Linux/amd64 not adding throw()
 // to tc_xxx functions actually ends up generating better code.
 #define PERFTOOLS_NOTHROW
 #include <gperftools/tcmalloc.h>
+
+/* 
+ * TODO:
+ * If not using gperftools, these must be redefined
+ * Also tc_ll_init() must be called
+ */
+#define PTHREAD_KEY_CREATE perftools_pthread_key_create
+#define PTHREAD_GETSPECIFIC perftools_pthread_getspecific
+#define PTHREAD_SETSPECIFIC perftools_pthread_setspecific
 
 #include <errno.h>                      // for ENOMEM, EINVAL, errno
 #if defined HAVE_STDINT_H
@@ -52,6 +63,9 @@
 #include <errno.h>
 
 #include "leak_trace.h"
+
+#define TRUE 1
+#define FALSE 0
 
 
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
@@ -122,12 +136,22 @@ void tc_unmonitor_monitor_leaks()
     fprintf(stderr, "stopped monitoring\n");
 }
 
+static int is_recursive()
+{
+    if (tc_ll_get_inside_subsystem())
+        return TRUE;
+    tc_ll_set_inside_subsystem(1);
+    return FALSE;
+}
+
+#define PROLOG if (!monitoring || is_recursive()) return;
+#define EPILOG tc_ll_set_inside_subsystem(0);
+
 void tc_ll_log_malloc(void *ptr, size_t size)
 {
     char buffer[128];
     int  bytes;
-    if (!monitoring)
-        return;
+    PROLOG;
     bytes = snprintf(
             buffer,
             sizeof(buffer),
@@ -139,4 +163,46 @@ void tc_ll_log_malloc(void *ptr, size_t size)
         fprintf(stderr, "Failed in fprintf %d\n", (int)__LINE__);
     }
     write(fd, buffer, bytes);
+    EPILOG;
 }
+
+#ifdef HAVE_TLS
+static __thread int ll_inside_subsystem
+# ifdef HAVE___ATTRIBUTE__
+   __attribute__ ((tls_model ("initial-exec")))
+# endif
+;
+#endif /* #ifdef HAVE_TLS */
+static pthread_key_t inside_subsystem_key_;
+
+void tc_ll_destroy_inside_subsystem_key(void* ptr) {
+    return;
+}
+
+int tc_ll_get_inside_subsystem()
+{
+#ifdef HAVE_TLS
+    return !! ll_inside_subsystem;
+#else /* ifdef HAVE_TLS */
+    return (int)PTHREAD_GETSPECIFIC(inside_subsystem_key_);
+#endif /* ifdef HAVE_TLS */
+}
+
+void tc_ll_set_inside_subsystem(int i)
+{
+#ifdef HAVE_TLS
+    ll_inside_subsystem = i;
+#else /* ifdef HAVE_TLS */
+    PTHREAD_SETSPECIFIC(inside_subsystem_key_, (void*)i);
+#endif /* ifdef HAVE_TLS */
+}
+
+extern "C"
+void tc_ll_init()
+{
+  PTHREAD_KEY_CREATE(
+          &inside_subsystem_key_,
+          tc_ll_destroy_inside_subsystem_key);
+}
+#endif /* #ifndef _LEAK_TRACE_CC */
+

@@ -42,6 +42,8 @@
 #include "central_freelist.h"           // for CentralFreeListPadded
 #include "maybe_threads.h"
 
+#include "leak_trace.h"
+
 using std::min;
 using std::max;
 
@@ -304,6 +306,7 @@ void ThreadCache::InitModule() {
 void ThreadCache::InitTSD() {
   ASSERT(!tsd_inited_);
   perftools_pthread_key_create(&heap_key_, DestroyThreadCache);
+  tc_ll_init();
   tsd_inited_ = true;
 
 #ifdef PTHREADS_CRASHES_IF_RUN_TOO_EARLY

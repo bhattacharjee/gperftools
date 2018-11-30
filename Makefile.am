@@ -291,8 +291,7 @@ libspinlock_la_LIBADD = $(NANOSLEEP_LIBS)
 # spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
 LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 
-TCMALLOC_CC = src/tcmalloc.cc \
-              src/leak_trace.cc
+TCMALLOC_CC = src/tcmalloc.cc 
 libmaybe_threads_la_SOURCES += src/maybe_threads.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
 endif !MINGW
