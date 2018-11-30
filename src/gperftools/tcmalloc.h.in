@@ -149,6 +149,8 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t al,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL int tc_monitor_leaks(char* filename) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_unmonitor_monitor_leaks() PERFTOOLS_NOTHROW;
 #endif
 }
 #endif
