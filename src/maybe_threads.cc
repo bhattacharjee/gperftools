@@ -77,7 +77,7 @@ extern "C" {
 #endif
 }
 
-#define MAX_PERTHREAD_VALS 16
+#define MAX_PERTHREAD_VALS 32
 static void *perftools_pthread_specific_vals[MAX_PERTHREAD_VALS];
 static int next_key;
 
