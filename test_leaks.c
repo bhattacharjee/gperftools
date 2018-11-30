@@ -36,6 +36,7 @@ void stop_monitoring()
                 "Check if LD_PRELOAD=./.libs/libtcmalloc_minimal.so is set.\n");
         return;
     }
+    tc_unmonitor_monitor_leaks();
     return;
 }
 
@@ -63,10 +64,8 @@ int check_count(char* filename, void* ptr, int count)
         len = 0;
         buffer = 0;
         readbyt = getline(&buffer, &len, fp);
+        if (readbyt)
         {
-            zeroind = (readbyt + 1 < sizeof(buffer) / sizeof(char)) ?
-                                readbyt + 1 : sizeof(buffer) / sizeof(char) - 1;
-            buffer[zeroind] = 0;
             if (strstr(buffer, pointer))
                 counted++;
         }
@@ -74,9 +73,41 @@ int check_count(char* filename, void* ptr, int count)
             free(buffer);
     }
 
+    fclose(fp);
+
+    fprintf(stderr, "Counted %p %d times\n", ptr, counted);
+
     if (counted == count)
         return TRUE;
     return FALSE;
+}
+
+void print_file(char* filename)
+{
+    FILE* fp = fopen(filename, "r");
+    if (fp)
+    {
+        fprintf(stderr, "PRINTING OUTPUT FILE %s:\n", filename);
+        while(!feof(fp))
+        {
+            size_t readbyt, zeroind;
+            char*   buffer  = 0;
+            size_t  len     = 0;
+
+            readbyt = getdelim(&buffer, &len, '\n', fp);
+            if (readbyt)
+            {
+                int n = strlen(buffer);
+                if ('\n' == buffer[n - 1])
+                    buffer[n -1] = 0;
+                fprintf(stderr, "%s\n", buffer);
+            }
+            if (buffer)
+                free(buffer);
+        }
+
+        fclose(fp);
+    }
 }
 
 int make_readable(char* filename)
@@ -96,11 +127,12 @@ void main()
         exit(1);
     }
 
-    if (!start_monitoring(filename))
+    if (0 != start_monitoring(filename))
     {
         fprintf(stderr, "Could not start monitoring\n");
         exit(1);
     }
+    else
 
     p2 = malloc(5);
     if (!p2)
@@ -119,6 +151,7 @@ void main()
     stop_monitoring();
     sleep(1); // Give it some time to flush
 
+
     p4 = malloc(5);
     if (!p4)
     {
@@ -133,21 +166,43 @@ void main()
         fprintf(stderr, "Filaneme %s is not readable\n", filename);
         exit(1);
     }
+    print_file(filename);
     if (FALSE == check_count(filename, p1, 1))
     {
         fprintf(stderr, "%p expected once, unmatched\n", p1);
     }
+    else
+    {
+        fprintf(stderr, "TEST passed");
+    }
+
     if (FALSE == check_count(filename, p2, 2))
     {
         fprintf(stderr, "%p expected twice, unmatched\n", p2);
     }
+    else
+    {
+        fprintf(stderr, "TEST passed");
+    }
+
     if (FALSE == check_count(filename, p3, 2))
     {
         fprintf(stderr, "%p expected twice, unmatched\n", p3);
     }
+    else
+    {
+        fprintf(stderr, "TEST passed");
+    }
+
     if (FALSE == check_count(filename, p4, 0))
     {
         fprintf(stderr, "%p expected zero times, unmatched\n", p3);
     }
+    else
+    {
+        fprintf(stderr, "TEST passed");
+    }
+
+    if (FALSE == check_count(filename, p3, 2))
     exit(0);
 }

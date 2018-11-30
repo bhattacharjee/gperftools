@@ -46,6 +46,14 @@
 
 #include "maybe_emergency_malloc.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#include "leak_trace.h"
+
+
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 # define WIN32_DO_PATCHING 1
 #endif
@@ -81,12 +89,54 @@ extern "C" {
 }
 #endif /* #ifndef _WIN32 */
 
+static int fd;
+static int monitoring;
+
 int tc_monitor_leaks(char *filename)
 {
+    fd = open(filename, O_CREAT|O_RDWR, S_IRWXU|S_IRWXG);
+    if (-1 == fd)
+    {
+        fprintf(
+                stderr,
+                "Could not open file %s, %d : %s\n",
+                filename,
+                errno,
+                strerror(errno));
+        return -1;
+    }
+
+    monitoring = 1;
+    fprintf(stderr, "started monitoring\n");
     return 0;
 }
 
 void tc_unmonitor_monitor_leaks()
 {
-    return;
+    monitoring = 0;
+    if (0 != fd && -1 != fd)
+    {
+        close(fd);
+        fd = 0;
+    }
+    fprintf(stderr, "stopped monitoring\n");
+}
+
+void tc_ll_log_malloc(void *ptr, size_t size)
+{
+    char buffer[128];
+    int  bytes;
+    if (!monitoring)
+        return;
+    bytes = snprintf(
+            buffer,
+            sizeof(buffer),
+            "+MALLOC(%llu) = %p\n",
+            (unsigned long long)size,
+            ptr);
+    if (!bytes)
+    {
+        fprintf(stderr, "Failed in fprintf %d\n", (int)__LINE__);
+    }
+    write(fd, buffer, bytes);
 }

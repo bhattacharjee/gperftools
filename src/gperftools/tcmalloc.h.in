@@ -79,6 +79,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+  void* tc_malloc_internal(size_t size);
   /*
    * Returns a human-readable version string.  If major, minor,
    * and/or patch are not NULL, they are set to the major version,

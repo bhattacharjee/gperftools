@@ -135,6 +135,8 @@
 
 #include "maybe_emergency_malloc.h"
 
+#include "leak_trace.h"
+
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 # define WIN32_DO_PATCHING 1
 #endif
@@ -1887,9 +1889,16 @@ static void* memalign_fast_path(size_t align, size_t size) {
   return malloc_fast_path<OOMHandler>(align_size_up(size, align));
 }
 
+void* tc_malloc_internal(size_t size)
+{
+    return malloc_fast_path<tcmalloc::malloc_oom>(size);
+}
+
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<tcmalloc::malloc_oom>(size);
+  void* ptr = tc_malloc_internal(size);
+  tc_ll_log_malloc(ptr, size);
+  return ptr;
 }
 
 static ATTRIBUTE_ALWAYS_INLINE inline
