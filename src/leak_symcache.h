@@ -85,13 +85,49 @@ class Symcache {
             return ret;
         }
 
-        char* lookup_record(void* ptr)
+        /*
+         * Can't return a reference to the symbol as it might
+         * get deleted at any point of time.
+         *
+         * Caller must pass a buffer, and the size of the buffer.
+         *
+         * On success, 0 is returned
+         *
+         * If the symbol is not found, -1 is returned
+         *
+         * If the buffer is not large enough, 1 is returned and the required
+         * size of the buffer is stored in the out_size
+         *
+         * If out or out_size is not valid, 2 is returned
+         */
+        int lookup_record(void* ptr, char* out, size_t* out_size)
         {
-            char* ret;
+            char*       ret;
+            size_t      required        = 0;
+            int         ret_out         = 0;
+
+            if (!out || !out_size)
+                return 2;
+
             lock_lock();
             ret = lookup_record_unsafe(ptr);
+            if (ret)
+            {
+                if ((required = strlen(ret) + 1) < *out_size)
+                {
+                    *out_size = required;
+                    ret_out = 1;
+                }
+                else
+                {
+                    strncpy(out, ret, *out_size);
+                    ret_out = 0;
+                }
+            }
+            else
+                ret_out = -1;
             lock_unlock();
-            return ret;
+            return ret_out;
         }
 };
 
