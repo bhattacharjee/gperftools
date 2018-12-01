@@ -4,9 +4,44 @@
 #include "leak_trace.h"
 
 static int monitoring;
-static int fd;
+static int fd = -1;
 
 static int io_offload_thread_started;
+static int thread_stopping;
+
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+pthread_cond_t  condition;
+pthread_mutex_t lock;
+
+void* worker_thread(void* arg)
+{
+    //io_offload_thread_started = TRUE;
+    return NULL;
+}
+
+int start_worker_thread()
+{
+    int                 res;
+    static pthread_t   th;
+
+    thread_stopping = FALSE;
+
+    res = pthread_create(
+            &th,
+            NULL,
+            worker_thread,
+            0);
+    if (0 != res)
+    {
+        fprintf(stderr,
+                "Failed to create worker thrad %d",
+                (int)__LINE__);
+    }
+    return res;
+}
+#else /* #ifdef HAVE_PTHREAD */
+#endif /* #ifdef HAVE_PTHREAD */
 
 extern "C"
 int tc_monitor_leaks(char *filename)
@@ -23,6 +58,10 @@ int tc_monitor_leaks(char *filename)
         return -1;
     }
 
+#if HAVE_PTHREAD
+    start_worker_thread();
+#endif
+
     write(fd, "=START\n", strlen("=START\n"));
     monitoring = 1;
     return 0;
@@ -35,8 +74,12 @@ void tc_unmonitor_leaks()
     if (0 != fd && -1 != fd)
     {
         write(fd, "=STOP\n", strlen("=STOP\n"));
-        close(fd);
-        fd = 0;
+        if (!io_offload_thread_started)
+        {
+            close(fd);
+            fd = -1;
+        }
+        io_offload_thread_started = 0;
     }
 }
 
