@@ -64,6 +64,8 @@
 
 #include "leak_trace.h"
 
+#include <execinfo.h>
+
 #define TRUE 1
 #define FALSE 0
 
@@ -117,4 +119,5 @@ void tc_ll_init();
 #ifdef __cplusplus
 }
 #endif /* #ifdef __cplusplus */
+
 #endif /* #ifndef _LEAK_TRACE_H */

@@ -6,9 +6,11 @@
 static int monitoring;
 static int fd;
 
+static int io_offload_thread_started;
+
 int tc_monitor_leaks(char *filename)
 {
-    fd = open(filename, O_CREAT|O_RDWR, S_IRWXU|S_IRWXG);
+    fd = open(filename, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG);
     if (-1 == fd)
     {
         fprintf(
@@ -20,8 +22,8 @@ int tc_monitor_leaks(char *filename)
         return -1;
     }
 
+    write(fd, "=START\n", strlen("=START\n"));
     monitoring = 1;
-    fprintf(stderr, "started monitoring\n");
     return 0;
 }
 
@@ -30,10 +32,10 @@ void tc_unmonitor_monitor_leaks()
     monitoring = 0;
     if (0 != fd && -1 != fd)
     {
+        write(fd, "=STOP\n", strlen("=STOP\n"));
         close(fd);
         fd = 0;
     }
-    fprintf(stderr, "stopped monitoring\n");
 }
 
 static int is_recursive()
@@ -44,18 +46,59 @@ static int is_recursive()
     return FALSE;
 }
 
+
+#define PRINT_SELF() \
+    char self[64]; \
+    int byt = sprintf(self, "=0x%llx\n", (unsigned long long)pthread_self()); \
+    write(fd, self, byt);
+    
+
+#define BACKTRACE_SIZE 25
+void do_log(char* buf, size_t buf_siz, int log_stk)
+{
+    void*   bktrc[BACKTRACE_SIZE];
+    int     nptrs;
+
+    nptrs = backtrace(bktrc, BACKTRACE_SIZE);
+    if (io_offload_thread_started)
+    {
+        return;
+    }
+    else
+    {
+        write(fd, buf, buf_siz);
+        if (log_stk)
+        {
+            backtrace_symbols_fd(bktrc, nptrs, fd);
+#if 0
+            int i;
+            char** strings = backtrace_symbols(bktrc, nptrs);
+            for (i = 0; i < nptrs; i++)
+            {
+                write(fd, strings[i], strlen(strings[i]));
+                write(fd, "\n", 1);
+                free(strings[i]);
+            }
+            free(strings);
+#endif
+        }
+        write(fd, "\n", 1);
+    }
+}
+
 #define PROLOG \
     char buffer[128]; \
     int bytes;\
     if (!monitoring || is_recursive()) return;
 
-#define EPILOG \
+#define EPILOG(print_stack) \
     if (!bytes) \
     { \
         fprintf(stderr, "Failed in fprintf %d\n", (int)__LINE__); \
     } \
-    write(fd, buffer, bytes); \
+    do_log(buffer, bytes, print_stack); \
     tc_ll_set_inside_subsystem(0);
+
 
 void tc_ll_log_malloc(void *ptr, size_t size)
 {
@@ -66,7 +109,7 @@ void tc_ll_log_malloc(void *ptr, size_t size)
             "+MALLOC(%llu) = %p\n",
             (unsigned long long)size,
             ptr);
-    EPILOG;
+    EPILOG(1);
 }
 
 void tc_ll_log_free(void *ptr)
@@ -77,7 +120,7 @@ void tc_ll_log_free(void *ptr)
             sizeof(buffer),
             "+FREE(%p)\n",
             ptr);
-    EPILOG;
+    EPILOG(0);
 }
 
 void tc_ll_log_realloc(void *oldptr, void* newptr, size_t size)
@@ -90,7 +133,7 @@ void tc_ll_log_realloc(void *oldptr, void* newptr, size_t size)
             oldptr,
             (unsigned long long)size,
             newptr);
-    EPILOG;
+    EPILOG(1);
 }
 
 void tc_ll_log_memalign(void *ptr, size_t size, size_t align)
@@ -103,7 +146,7 @@ void tc_ll_log_memalign(void *ptr, size_t size, size_t align)
             (unsigned long long)size,
             (unsigned long long)align,
             ptr);
-    EPILOG;
+    EPILOG(1);
 }
 
 #ifdef HAVE_TLS

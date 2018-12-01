@@ -115,11 +115,12 @@ int make_readable(char* filename)
     return ! chmod(filename, 0777);
 }
 
-void main()
+void test()
 {
     void *p1, *p2, *p3, *p4;
     char *filename = "/tmp/filename.txt";
 
+    unlink(filename);
     p1 = malloc(5);
     if (!p1)
     {
@@ -179,7 +180,7 @@ void main()
     }
     else
     {
-        fprintf(stderr, "TEST passed");
+        fprintf(stderr, "TEST passed\n");
     }
 
     if (FALSE == check_count(filename, p2, 2))
@@ -188,7 +189,7 @@ void main()
     }
     else
     {
-        fprintf(stderr, "TEST passed");
+        fprintf(stderr, "TEST passed\n");
     }
 
     if (FALSE == check_count(filename, p3, 2))
@@ -197,7 +198,7 @@ void main()
     }
     else
     {
-        fprintf(stderr, "TEST passed");
+        fprintf(stderr, "TEST passed\n");
     }
 
     if (FALSE == check_count(filename, p4, 0))
@@ -211,4 +212,9 @@ void main()
 
     if (FALSE == check_count(filename, p3, 2))
     exit(0);
+}
+
+void main(int argc, char** argv)
+{
+    test();
 }
