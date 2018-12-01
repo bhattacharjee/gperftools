@@ -2,6 +2,9 @@
 #define _LEAK_TRACE_CC
 
 #include "leak_trace.h"
+#include "leak_symcache.cc"
+
+Symcache symcache;
 
 static int monitoring;
 static int fd = -1;
