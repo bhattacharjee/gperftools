@@ -10,7 +10,6 @@
 #define FALSE 0
 #define TRUE 1
 
-void (*tc_unmonitor_monitor_leaks)();
 int start_monitoring(char *filename)
 {
     int (*tc_monitor_leaks)(char *filename);
@@ -28,15 +27,15 @@ int start_monitoring(char *filename)
 
 void stop_monitoring()
 {
-    void (*tc_unmonitor_monitor_leaks)();
-    tc_unmonitor_monitor_leaks = dlsym(NULL, "tc_unmonitor_monitor_leaks");
-    if (!tc_unmonitor_monitor_leaks)
+    void (*tc_unmonitor_leaks)();
+    tc_unmonitor_leaks = dlsym(NULL, "tc_unmonitor_leaks");
+    if (!tc_unmonitor_leaks)
     {
-        fprintf(stderr, "Could not find symbol tc_unmonitor_monitor_leaks. "
+        fprintf(stderr, "Could not find symbol tc_unmonitor_leaks. "
                 "Check if LD_PRELOAD=./.libs/libtcmalloc_minimal.so is set.\n");
         return;
     }
-    tc_unmonitor_monitor_leaks();
+    tc_unmonitor_leaks();
     return;
 }
 
@@ -214,7 +213,9 @@ void test()
     exit(0);
 }
 
-void main(int argc, char** argv)
+int main(int argc, char** argv)
 {
+    printf("Hello world\n");
     test();
+    return (int)printf("Hello world\n");
 }

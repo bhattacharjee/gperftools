@@ -8,6 +8,7 @@ static int fd;
 
 static int io_offload_thread_started;
 
+extern "C"
 int tc_monitor_leaks(char *filename)
 {
     fd = open(filename, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG);
@@ -27,7 +28,8 @@ int tc_monitor_leaks(char *filename)
     return 0;
 }
 
-void tc_unmonitor_monitor_leaks()
+extern "C"
+void tc_unmonitor_leaks()
 {
     monitoring = 0;
     if (0 != fd && -1 != fd)
