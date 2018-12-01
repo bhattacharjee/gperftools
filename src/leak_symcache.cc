@@ -124,7 +124,7 @@ int Symcache::insert_record_unsafe(void* ptr, const char* symbol)
     // Now add it to the top of the lru queue
     record->lru.next = lruhead.next;
     record->lru.prev = &lruhead;
-    lruhead.next = &record->lru;
+    record->lru.prev->next = &record->lru;
     record->lru.next->prev = &record->lru;
 
     ++n_entries;
