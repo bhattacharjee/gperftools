@@ -7,8 +7,13 @@
 
 #include <stdlib.h>
 
+#ifndef DEFAULT_BUCKETS
 #define DEFAULT_BUCKETS 128
+#endif /* #ifndef DEFAULT_BUCKETS */
+
+#ifndef DEFAULT_MAX_RECORDS
 #define DEFAULT_MAX_RECORDS 8192
+#endif /* #ifndef DEFAULT_MAX_RECORDS */
 
 #ifndef OFFSETOF
 #define OFFSETOF(TYPE, ELEMENT) ((size_t)&(((TYPE *)0)->ELEMENT))
