@@ -134,6 +134,8 @@ void main()
     }
     else
 
+    /*********** THE FOLLOWING ARE TESTED *************/
+
     p2 = malloc(5);
     if (!p2)
     {
@@ -147,7 +149,11 @@ void main()
         exit(1);
     }
 
+    free(p1);
     free(p2);
+    free(p3);
+    /***************** END OF TEST ********************/
+
     stop_monitoring();
     sleep(1); // Give it some time to flush
 
@@ -200,7 +206,7 @@ void main()
     }
     else
     {
-        fprintf(stderr, "TEST passed");
+        fprintf(stderr, "TEST passed\n");
     }
 
     if (FALSE == check_count(filename, p3, 2))

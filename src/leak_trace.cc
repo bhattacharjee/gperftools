@@ -44,13 +44,21 @@ static int is_recursive()
     return FALSE;
 }
 
-#define PROLOG if (!monitoring || is_recursive()) return;
-#define EPILOG tc_ll_set_inside_subsystem(0);
+#define PROLOG \
+    char buffer[128]; \
+    int bytes;\
+    if (!monitoring || is_recursive()) return;
+
+#define EPILOG \
+    if (!bytes) \
+    { \
+        fprintf(stderr, "Failed in fprintf %d\n", (int)__LINE__); \
+    } \
+    write(fd, buffer, bytes); \
+    tc_ll_set_inside_subsystem(0);
 
 void tc_ll_log_malloc(void *ptr, size_t size)
 {
-    char buffer[128];
-    int  bytes;
     PROLOG;
     bytes = snprintf(
             buffer,
@@ -58,11 +66,43 @@ void tc_ll_log_malloc(void *ptr, size_t size)
             "+MALLOC(%llu) = %p\n",
             (unsigned long long)size,
             ptr);
-    if (!bytes)
-    {
-        fprintf(stderr, "Failed in fprintf %d\n", (int)__LINE__);
-    }
-    write(fd, buffer, bytes);
+    EPILOG;
+}
+
+void tc_ll_log_free(void *ptr)
+{
+    PROLOG;
+    bytes = snprintf(
+            buffer,
+            sizeof(buffer),
+            "+FREE(%p)\n",
+            ptr);
+    EPILOG;
+}
+
+void tc_ll_log_realloc(void *oldptr, void* newptr, size_t size)
+{
+    PROLOG;
+    bytes = snprintf(
+            buffer,
+            sizeof(buffer),
+            "+REALLOC(%p, %llu) = %p\n",
+            oldptr,
+            (unsigned long long)size,
+            newptr);
+    EPILOG;
+}
+
+void tc_ll_log_memalign(void *ptr, size_t size, size_t align)
+{
+    PROLOG;
+    bytes = snprintf(
+            buffer,
+            sizeof(buffer),
+            "+MEMALIGN(%llu, %llu) = %p\n",
+            (unsigned long long)size,
+            (unsigned long long)align,
+            ptr);
     EPILOG;
 }
 

@@ -1912,9 +1912,15 @@ void free_fast_path(void *ptr) {
   do_free(ptr);
 }
 
+void tc_free_internal(void* ptr)
+{
+  free_fast_path(ptr);
+}
+
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void tc_free(void* ptr) PERFTOOLS_NOTHROW {
-  free_fast_path(ptr);
+    tc_free_internal(ptr);
+    tc_ll_log_free(ptr);
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
@@ -1976,8 +1982,9 @@ TC_ALIAS(tc_free);
 }
 #endif
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
-                                               size_t new_size) PERFTOOLS_NOTHROW {
+
+void* tc_realloc_internal(void* old_ptr, size_t new_size)
+{
   if (old_ptr == NULL) {
     void* result = do_malloc_or_cpp_alloc(new_size);
     MallocHook::InvokeNewHook(result, new_size);
@@ -1992,6 +1999,14 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
     return tcmalloc::EmergencyRealloc(old_ptr, new_size);
   }
   return do_realloc(old_ptr, new_size);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
+                                               size_t new_size) PERFTOOLS_NOTHROW
+{
+    void *ret = tc_realloc_internal(old_ptr, new_size);
+    tc_ll_log_realloc(old_ptr, ret, new_size);
+    return ret;
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
@@ -2062,9 +2077,17 @@ TC_ALIAS(tc_delete_nothrow);
 }
 #endif
 
+void* tc_memalign_internal(size_t align, size_t size)
+{
+  return memalign_fast_path<tcmalloc::malloc_oom>(align, size);
+}
+
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<tcmalloc::malloc_oom>(align, size);
+    void *ret = tc_memalign_internal(align, size);
+    tc_ll_log_memalign(ret, size, align);
+    return ret;
+
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
