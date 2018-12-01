@@ -95,10 +95,13 @@ class Symcache {
          *
          * If the symbol is not found, -1 is returned
          *
-         * If the buffer is not large enough, 1 is returned and the required
-         * size of the buffer is stored in the out_size
+         * If the symbol is not vaoid, -2 is returned;
          *
-         * If out or out_size is not valid, 2 is returned
+         * If the symbol is found but either out or out_size is NULL, 2 is
+         * returned.
+         *
+         * If the symbol is found but the buffer is not large enough, 1 is
+         * returned. out_size will contain the size of the buffer required.
          *
          * TODO: A better solution is to use reference counting, but I'm not
          * implementing this at the moment.
@@ -109,14 +112,16 @@ class Symcache {
             size_t      required        = 0;
             int         ret_out         = 0;
 
-            if (!out || !out_size)
-                return 2;
+            if (!ptr)
+                return -2;
 
             lock_lock();
             ret = lookup_record_unsafe(ptr);
             if (ret)
             {
-                if ((required = strlen(ret) + 1) < *out_size)
+                if (!out || !out_size)
+                    ret_out = 2;
+                else if ((required = strlen(ret) + 1) < *out_size)
                 {
                     *out_size = required;
                     ret_out = 1;
