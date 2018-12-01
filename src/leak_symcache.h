@@ -99,6 +99,9 @@ class Symcache {
          * size of the buffer is stored in the out_size
          *
          * If out or out_size is not valid, 2 is returned
+         *
+         * TODO: A better solution is to use reference counting, but I'm not
+         * implementing this at the moment.
          */
         int lookup_record(void* ptr, char* out, size_t* out_size)
         {
