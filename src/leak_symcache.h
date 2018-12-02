@@ -100,7 +100,7 @@ class Symcache {
          *
          * If the symbol is not found, -1 is returned
          *
-         * If the symbol is not vaoid, -2 is returned;
+         * If the symbol is not found, -2 is returned;
          *
          * If the symbol is found but either out or out_size is NULL, 2 is
          * returned.

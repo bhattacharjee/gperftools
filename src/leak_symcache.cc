@@ -1,7 +1,7 @@
 #ifndef _LEAKS_SYMCACHE_CC
 #define _LEAKS_SYMCACHE_CC
 #include "leak_symcache.h"
-#include <strings.h>
+#include <string.h>
 
 
 Symcache::Symcache()
@@ -113,7 +113,7 @@ int Symcache::insert_record_unsafe(void* ptr, const char* symbol)
     while (NULL != prev->next &&
             (size_t)(((symrecord_ptr_t)(prev->next))->ptr) < (size_t)ptr)
         prev = prev->next;
-    if (((symrecord_ptr_t)(prev->next))->ptr == ptr)
+    if (prev->next && ((symrecord_ptr_t)(prev->next))->ptr == ptr)
     {
         free(record);
         return 0;
