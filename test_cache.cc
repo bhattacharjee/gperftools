@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define TEST(X, Y) if(!(X)){fprintf(stderr, "%d: %s\n", __LINE__, (Y)); exit(1);}
+#define TEST(X, Y) if(!(X)){fprintf(stderr, "%d: %s\n", __LINE__,(Y)); exit(1);}
 #define _V(X) (void*)(X)
 #define _S(x) n[(x)]
 
