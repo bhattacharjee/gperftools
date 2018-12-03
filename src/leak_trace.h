@@ -118,6 +118,23 @@ extern "C" {
 void tc_ll_init();
 #ifdef __cplusplus
 }
+
+#define BACKTRACE_SIZE 25
+typedef struct backlog {
+    struct backlog* next;
+    char            buffer[128];
+    size_t          buffer_size;
+    int             log_stack;
+    void*           backtrace[BACKTRACE_SIZE];
+    size_t          nptrs;
+} backlog_t;
+
+typedef struct backlog* backlog_ptr_t;
+
+#ifdef __linux__
+#define COMPARE_AND_SWAP __sync_bool_compare_and_swap 
+#endif /* #ifdef __linux__ */
+
 #endif /* #ifdef __cplusplus */
 
 #endif /* #ifndef _LEAK_TRACE_H */

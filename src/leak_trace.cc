@@ -12,14 +12,117 @@ static int fd = -1;
 static int io_offload_thread_started;
 static int thread_stopping;
 
+
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
-pthread_cond_t  condition;
-pthread_mutex_t lock;
+pthread_cond_t  condition           = PTHREAD_COND_INITIALIZER;
+pthread_cond_t  thread_finished     = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t lock                = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lock2               = PTHREAD_MUTEX_INITIALIZER;
+
+backlog_ptr_t queue;
+
+void add_to_backlog(backlog_ptr_t ptr)
+{
+    if (!ptr)
+        return;
+    do
+    {
+        ptr->next = queue;
+    } while(! COMPARE_AND_SWAP(&queue, ptr->next, ptr));
+
+    pthread_mutex_lock(&lock);
+    pthread_cond_signal(&condition);
+    pthread_mutex_unlock(&lock);
+}
+
+void do_print(backlog_ptr_t backlog)
+{
+    if (!backlog)
+        return;
+
+    write(fd, backlog->buffer, backlog->buffer_size);
+    if (backlog->log_stack)
+    {
+        backtrace_symbols_fd(backlog->backtrace, backlog->nptrs, fd);
+    }
+    write(fd, "\n", 1);
+}
+
+
+void do_log(char* buf, size_t buf_siz, int log_stk)
+{
+    backlog_ptr_t backlog = (backlog_ptr_t)calloc(sizeof(backlog_t), 1);
+    if (!backlog)
+    {
+        fprintf(stderr, "Failed to allocate memory\n");
+        return;
+    }
+
+    backlog->nptrs = backtrace(backlog->backtrace, BACKTRACE_SIZE);
+    backlog->log_stack = log_stk;
+    memcpy(backlog->buffer, buf, buf_siz);
+    backlog->buffer_size = buf_siz;
+
+    if (io_offload_thread_started)
+    {
+        add_to_backlog(backlog);
+        return;
+    }
+    else
+    {
+        do_print(backlog);
+        free(backlog);
+    }
+}
 
 void* worker_thread(void* arg)
 {
-    //io_offload_thread_started = TRUE;
+    io_offload_thread_started = TRUE;
+    thread_stopping = 0;
+    tc_ll_set_inside_subsystem(1);
+    while (1)
+    {
+        backlog_ptr_t queue_copy;
+        if (0 == pthread_mutex_lock(&lock))
+        {
+            while (0 == thread_stopping && 0 == queue)
+                pthread_cond_wait(&condition, &lock);
+            pthread_mutex_unlock(&lock);
+        }
+
+        do
+        {
+            queue_copy = queue;
+        } while(! COMPARE_AND_SWAP(&queue, queue_copy, 0));
+
+        while (queue_copy)
+        {
+            backlog_ptr_t ptr = queue_copy->next;
+            do_print(queue_copy);
+            free(queue_copy);
+            queue_copy = ptr;
+        }
+
+        if (thread_stopping && !queue)
+        {
+            if (0 != fd && -1 != fd)
+            {
+                write(fd, "=STOP\n", strlen("=STOP\n"));
+                close(fd);
+                fd = -1;
+            }
+            io_offload_thread_started = 0;
+            thread_stopping = 0;
+            monitoring = 0;
+
+            pthread_mutex_lock(&lock2);
+            pthread_cond_signal(&thread_finished);
+            pthread_mutex_unlock(&lock2);
+            
+            return NULL;
+        }
+    }
     return NULL;
 }
 
@@ -49,6 +152,8 @@ int start_worker_thread()
 extern "C"
 int tc_monitor_leaks(char *filename)
 {
+    malloc(1);
+    pthread_mutex_lock(&lock);
     fd = open(filename, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG);
     if (-1 == fd)
     {
@@ -58,15 +163,17 @@ int tc_monitor_leaks(char *filename)
                 filename,
                 errno,
                 strerror(errno));
+        pthread_mutex_unlock(&lock);
         return -1;
     }
+    monitoring = 1;
+    write(fd, "=START\n", strlen("=START\n"));
+    pthread_mutex_unlock(&lock);
 
 #if HAVE_PTHREAD
     start_worker_thread();
 #endif
 
-    write(fd, "=START\n", strlen("=START\n"));
-    monitoring = 1;
     return 0;
 }
 
@@ -74,16 +181,24 @@ extern "C"
 void tc_unmonitor_leaks()
 {
     monitoring = 0;
-    if (0 != fd && -1 != fd)
+    if (!io_offload_thread_started && 0 != fd && -1 != fd)
     {
         write(fd, "=STOP\n", strlen("=STOP\n"));
-        if (!io_offload_thread_started)
-        {
-            close(fd);
-            fd = -1;
-        }
-        io_offload_thread_started = 0;
+        close(fd);
+        fd = -1;
     }
+    else
+    {
+        pthread_mutex_lock(&lock);
+        thread_stopping = 1;
+        pthread_cond_signal(&condition);
+        pthread_mutex_unlock(&lock);
+
+        pthread_mutex_lock(&lock2);
+        pthread_cond_wait(&thread_finished, &lock2);
+        pthread_mutex_unlock(&lock2);
+    }
+
 }
 
 static int is_recursive()
@@ -101,38 +216,6 @@ static int is_recursive()
     write(fd, self, byt);
     
 
-#define BACKTRACE_SIZE 25
-void do_log(char* buf, size_t buf_siz, int log_stk)
-{
-    void*   bktrc[BACKTRACE_SIZE];
-    int     nptrs;
-
-    nptrs = backtrace(bktrc, BACKTRACE_SIZE);
-    if (io_offload_thread_started)
-    {
-        return;
-    }
-    else
-    {
-        write(fd, buf, buf_siz);
-        if (log_stk)
-        {
-            backtrace_symbols_fd(bktrc, nptrs, fd);
-#if 0
-            int i;
-            char** strings = backtrace_symbols(bktrc, nptrs);
-            for (i = 0; i < nptrs; i++)
-            {
-                write(fd, strings[i], strlen(strings[i]));
-                write(fd, "\n", 1);
-                free(strings[i]);
-            }
-            free(strings);
-#endif
-        }
-        write(fd, "\n", 1);
-    }
-}
 
 #define PROLOG \
     char buffer[128]; \

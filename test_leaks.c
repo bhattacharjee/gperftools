@@ -132,7 +132,6 @@ void test()
         fprintf(stderr, "Could not start monitoring\n");
         exit(1);
     }
-    else
 
     /*********** THE FOLLOWING ARE TESTED *************/
 
@@ -155,10 +154,10 @@ void test()
     /***************** END OF TEST ********************/
 
     stop_monitoring();
-    sleep(1); // Give it some time to flush
+    sleep(3); // Give it some time to flush
 
 
-    p4 = malloc(5);
+    p4 = malloc(51);
     if (!p4)
     {
         fprintf(stderr, "Failed to allocate memory\n");
