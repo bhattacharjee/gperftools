@@ -99,7 +99,7 @@ def process_file(f):
         elif (line.startswith("-")):
             process_symentry(line)
         elif (line.startswith("=")):
-            print("Start/Stop marker")
+            pass
         elif (line.startswith("0") and getstack):
             curstack.append(line)
         if (getstack and (len(curstack) > 0) and not line.startswith("0")):
