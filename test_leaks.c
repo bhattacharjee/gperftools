@@ -154,7 +154,7 @@ void test()
     /***************** END OF TEST ********************/
 
     stop_monitoring();
-    sleep(3); // Give it some time to flush
+    sleep(1); // Give it some time to flush
 
 
     p4 = malloc(51);

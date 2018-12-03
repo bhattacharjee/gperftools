@@ -120,16 +120,16 @@ void tc_ll_init();
 }
 
 #define BACKTRACE_SIZE 25
-typedef struct backlog {
-    struct backlog* next;
+typedef struct stack_record {
+    struct stack_record* next;
     char            buffer[128];
     size_t          buffer_size;
     int             log_stack;
     void*           backtrace[BACKTRACE_SIZE];
     size_t          nptrs;
-} backlog_t;
+} stack_record_t;
 
-typedef struct backlog* backlog_ptr_t;
+typedef struct stack_record* stack_record_ptr_t;
 
 #ifdef __linux__
 #define COMPARE_AND_SWAP __sync_bool_compare_and_swap 

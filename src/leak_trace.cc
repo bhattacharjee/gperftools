@@ -1,28 +1,29 @@
 #ifndef _LEAK_TRACE_CC
 #define _LEAK_TRACE_CC
 
+#include <stdio.h>
 #include "leak_trace.h"
 #include "leak_symcache.cc"
 
 Symcache symcache;
 
-static int monitoring;
-static int fd = -1;
+static int          monitoring;
+static FILE*        fd;
 
-static int io_offload_thread_started;
-static int thread_stopping;
+static int          io_offload_thread_started;
+static int          thread_stopping;
 
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
-pthread_cond_t  condition           = PTHREAD_COND_INITIALIZER;
-pthread_cond_t  thread_finished     = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t lock                = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t lock2               = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t      condition           = PTHREAD_COND_INITIALIZER;
+pthread_cond_t      thread_finished     = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t     lock                = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t     lock2               = PTHREAD_MUTEX_INITIALIZER;
 
-backlog_ptr_t queue;
+stack_record_ptr_t queue;
 
-void add_to_backlog(backlog_ptr_t ptr)
+void add_to_stack_record(stack_record_ptr_t ptr)
 {
     if (!ptr)
         return;
@@ -36,43 +37,85 @@ void add_to_backlog(backlog_ptr_t ptr)
     pthread_mutex_unlock(&lock);
 }
 
-void do_print(backlog_ptr_t backlog)
+void do_print(stack_record_ptr_t stack_record)
 {
-    if (!backlog)
+    if (!stack_record)
         return;
 
-    write(fd, backlog->buffer, backlog->buffer_size);
-    if (backlog->log_stack)
+    fwrite(stack_record->buffer, stack_record->buffer_size, 1, fd);
+    if (stack_record->log_stack)
     {
-        backtrace_symbols_fd(backlog->backtrace, backlog->nptrs, fd);
+        int i;
+        int firstseen = 0;
+        for(i = 0; i < stack_record->nptrs; i++)
+        {
+            fprintf(fd, "%p\n", stack_record->backtrace[i]);
+            if (symcache.lookup_record(
+                        stack_record->backtrace[i],
+                        NULL,
+                        NULL) < 0)
+                firstseen = 1;
+        }
+
+        if (firstseen)
+        {
+            char** strings = backtrace_symbols(
+                    stack_record->backtrace,
+                    stack_record->nptrs);
+            if (!strings)
+                fprintf(stderr, "Could not get backtrace");
+            for (i = 0; i < stack_record->nptrs && strings; i++)
+            {
+                if (symcache.lookup_record(
+                            stack_record->backtrace[i],
+                            NULL,
+                            0) < 0)
+                {
+                    if (strings[i])
+                    {
+                        symcache.insert_record(
+                                stack_record->backtrace[i],
+                                strings[i]);
+                        fprintf(fd,
+                                "-%p-%s\n",
+                                stack_record->backtrace[i],
+                                strings[i]);
+                    }
+                }
+            }
+            if (strings)
+                free(strings);
+        }
+
     }
-    write(fd, "\n", 1);
+    fprintf(fd, "\n");
 }
 
 
 void do_log(char* buf, size_t buf_siz, int log_stk)
 {
-    backlog_ptr_t backlog = (backlog_ptr_t)calloc(sizeof(backlog_t), 1);
-    if (!backlog)
+    stack_record_ptr_t stack_record =
+        (stack_record_ptr_t)calloc(sizeof(stack_record_t), 1);
+    if (!stack_record)
     {
         fprintf(stderr, "Failed to allocate memory\n");
         return;
     }
 
-    backlog->nptrs = backtrace(backlog->backtrace, BACKTRACE_SIZE);
-    backlog->log_stack = log_stk;
-    memcpy(backlog->buffer, buf, buf_siz);
-    backlog->buffer_size = buf_siz;
+    stack_record->nptrs = backtrace(stack_record->backtrace, BACKTRACE_SIZE);
+    stack_record->log_stack = log_stk;
+    memcpy(stack_record->buffer, buf, buf_siz);
+    stack_record->buffer_size = buf_siz;
 
     if (io_offload_thread_started)
     {
-        add_to_backlog(backlog);
+        add_to_stack_record(stack_record);
         return;
     }
     else
     {
-        do_print(backlog);
-        free(backlog);
+        do_print(stack_record);
+        free(stack_record);
     }
 }
 
@@ -81,9 +124,10 @@ void* worker_thread(void* arg)
     io_offload_thread_started = TRUE;
     thread_stopping = 0;
     tc_ll_set_inside_subsystem(1);
+    fprintf(fd, "=START\n");
     while (1)
     {
-        backlog_ptr_t queue_copy;
+        stack_record_ptr_t queue_copy;
         if (0 == pthread_mutex_lock(&lock))
         {
             while (0 == thread_stopping && 0 == queue)
@@ -98,7 +142,7 @@ void* worker_thread(void* arg)
 
         while (queue_copy)
         {
-            backlog_ptr_t ptr = queue_copy->next;
+            stack_record_ptr_t ptr = queue_copy->next;
             do_print(queue_copy);
             free(queue_copy);
             queue_copy = ptr;
@@ -106,11 +150,11 @@ void* worker_thread(void* arg)
 
         if (thread_stopping && !queue)
         {
-            if (0 != fd && -1 != fd)
+            if (NULL != fd)
             {
-                write(fd, "=STOP\n", strlen("=STOP\n"));
-                close(fd);
-                fd = -1;
+                fprintf(fd, "=STOP\n");
+                fclose(fd);
+                fd = NULL;
             }
             io_offload_thread_started = 0;
             thread_stopping = 0;
@@ -154,8 +198,8 @@ int tc_monitor_leaks(char *filename)
 {
     malloc(1);
     pthread_mutex_lock(&lock);
-    fd = open(filename, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU|S_IRWXG);
-    if (-1 == fd)
+    fd = fopen(filename, "w");
+    if (NULL == fd)
     {
         fprintf(
                 stderr,
@@ -167,11 +211,12 @@ int tc_monitor_leaks(char *filename)
         return -1;
     }
     monitoring = 1;
-    write(fd, "=START\n", strlen("=START\n"));
     pthread_mutex_unlock(&lock);
 
 #if HAVE_PTHREAD
     start_worker_thread();
+#else
+    fprintf(fd, "=START\n");
 #endif
 
     return 0;
@@ -181,11 +226,11 @@ extern "C"
 void tc_unmonitor_leaks()
 {
     monitoring = 0;
-    if (!io_offload_thread_started && 0 != fd && -1 != fd)
+    if (!io_offload_thread_started && NULL != fd)
     {
-        write(fd, "=STOP\n", strlen("=STOP\n"));
-        close(fd);
-        fd = -1;
+        fprintf(fd, "=STOP\n");
+        fclose(fd);
+        fd = NULL;
     }
     else
     {
@@ -211,11 +256,7 @@ static int is_recursive()
 
 
 #define PRINT_SELF() \
-    char self[64]; \
-    int byt = sprintf(self, "=0x%llx\n", (unsigned long long)pthread_self()); \
-    write(fd, self, byt);
-    
-
+    fprintf(fd, "=0x%llx\n", (unsigned long long)pthread_self());
 
 #define PROLOG \
     char buffer[128]; \

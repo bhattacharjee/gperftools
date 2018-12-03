@@ -1,3 +1,6 @@
+Some custom memory leak checking interface built over tcmalloc for my own usage.
+
+
 gperftools
 ----------
 (originally Google Performance Tools)
