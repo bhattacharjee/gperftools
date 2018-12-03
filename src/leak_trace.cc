@@ -128,6 +128,7 @@ void* worker_thread(void* arg)
     while (1)
     {
         stack_record_ptr_t queue_copy;
+        stack_record_ptr_t tmpq = NULL;
         if (0 == pthread_mutex_lock(&lock))
         {
             while (0 == thread_stopping && 0 == queue)
@@ -139,6 +140,18 @@ void* worker_thread(void* arg)
         {
             queue_copy = queue;
         } while(! COMPARE_AND_SWAP(&queue, queue_copy, 0));
+
+        // Reverse the queue first since that is the order things came in
+        while (queue_copy)
+        {
+            stack_record_ptr_t tmp = queue_copy;
+            queue_copy = queue_copy->next;
+            tmp->next = tmpq;
+            tmpq = tmp;
+        }
+        queue_copy = tmpq;
+
+
 
         while (queue_copy)
         {

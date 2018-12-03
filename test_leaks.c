@@ -141,16 +141,22 @@ void test()
         fprintf(stderr, "Failed to allocate memory\n");
         exit(1);
     }
+    printf("allocated %p\n", p2);
+
     p3 = malloc(5);
     if (!p3)
     {
         fprintf(stderr, "Failed to allocate memory\n");
         exit(1);
     }
+    printf("allocated %p\n", p3);
 
     free(p1);
+    printf("free %p\n", p1);
     free(p2);
+    printf("free %p\n", p2);
     free(p3);
+    printf("free %p\n", p3);
     /***************** END OF TEST ********************/
 
     stop_monitoring();
