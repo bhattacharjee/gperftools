@@ -1,5 +1,63 @@
 Some custom memory leak checking interface built over tcmalloc for my own usage.
 
+The application needs to be compiled with "-rdynamic" flag for the stack
+trace to produce any meaningful symbols.
+
+The library must be loaded using LD_PRELOAD
+
+To turn on monitoring, a function similar to this must be executed:
+
+int start_monitoring(char *filename)
+{
+    int (*tc_monitor_leaks)(char *filename);
+
+    tc_monitor_leaks = dlsym(NULL, "tc_monitor_leaks");
+    if (!tc_monitor_leaks)
+    {
+        fprintf(stderr, "Could not find symbol tc_monitor_monitor_leaks. "
+                "Check if LD_PRELOAD=./.libs/libtcmalloc_minimal.so is set.\n");
+        return -1;
+    }
+
+    return tc_monitor_leaks(filename);
+}
+
+To turn off monitoring, execute a function like this:
+
+void stop_monitoring()
+{
+    void (*tc_unmonitor_leaks)();
+    tc_unmonitor_leaks = dlsym(NULL, "tc_unmonitor_leaks");
+    if (!tc_unmonitor_leaks)
+    {
+        fprintf(stderr, "Could not find symbol tc_unmonitor_leaks. "
+                "Check if LD_PRELOAD=./.libs/libtcmalloc_minimal.so is set.\n");
+        return;
+    }
+    tc_unmonitor_leaks();
+    return;
+}
+
+When the monitoring stops, the output file can be parsed with the python script:
+
+python leaks.py <output_log_file>
+
+[SPIDER]$ ./leaks.py /tmp/filename.txt
+Could not find 0x7fffc7490008 in allocated list
+================================================================================
+5 bytes lost in 1 allocations, avg = 5
+--------------------------------------------------------------------------------
+./.libs/libtcmalloc.so(_Z6do_logPcmi+0x3b) [0x7f2921a1a09b]
+./.libs/libtcmalloc.so(_Z16tc_ll_log_mallocPvm+0xac) [0x7f2921a1a1dc]
+./.libs/libtcmalloc.so(malloc+0x1c) [0x7f2921a39d9c]
+./test_leaks(test+0xf9) [0x7f292220139b]
+./test_leaks(main+0x25) [0x7f29222016b8]
+/lib/x86_64
+./test_leaks(_start+0x2a) [0x7f2922200e4a]
+================================================================================
+
+
+
 
 gperftools
 ----------
