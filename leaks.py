@@ -129,7 +129,9 @@ def aggregate():
         aggregated[sthash] = aggrentry
 
 def printresult():
-    for sthash, entry in aggregated.items():
+    for sthash, entry in sorted(aggregated.items(),
+            key=lambda x: x[1]["tot_size"] if x != None else 0,
+            reverse=True):
         print("=" * 80)
         print("%d bytes lost in %d allocations, avg = %d" %
             (entry["tot_size"],
