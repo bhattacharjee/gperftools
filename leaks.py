@@ -51,7 +51,6 @@ def process_realloc(line):
     line = line.replace("(nil)", "0x0")
     words1 = line.split('(')[1].split(')')[0].split(",")
     oldptr = words1[0].strip()
-    print(line)
     newsize = words1[1].strip()
     newptr = line.split("=")[1].strip()
     if (oldptr in allocated):
@@ -63,7 +62,7 @@ def process_realloc(line):
     entry["size"] = newsize
     entry["stack"] = []
     allocated[newptr] = entry
-    print("1. overwrite stack for ", oldptr)
+    print("1. overwrite stack for ", oldptr, file=sys.stderr)
     return True, newptr
 
 def process_memalign(line):
