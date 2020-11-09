@@ -1,7 +1,9 @@
 #ifndef _LEAK_TRACE_CC
 #define _LEAK_TRACE_CC
 
+#include <pthread.h>
 #include <stdio.h>
+#include "maybe_threads.h"
 #include "leak_trace.h"
 #include "leak_symcache.cc"
 
@@ -22,6 +24,8 @@ pthread_mutex_t     lock                = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t     lock2               = PTHREAD_MUTEX_INITIALIZER;
 
 stack_record_ptr_t queue;
+
+pthread_key_t inside_subsystem_key_;
 
 void add_to_stack_record(stack_record_ptr_t ptr)
 {
@@ -206,10 +210,17 @@ int start_worker_thread()
 #else /* #ifdef HAVE_PTHREAD */
 #endif /* #ifdef HAVE_PTHREAD */
 
+
 extern "C"
 int tc_monitor_leaks(char *filename)
 {
     malloc(1);
+#ifndef HAVE_TLS
+#if HAVE_PTHREAD
+    inside_subsystem_key_ = 0;
+    perftools_pthread_key_create(&inside_subsystem_key_, NULL);
+#endif
+#endif
     pthread_mutex_lock(&lock);
     fd = fopen(filename, "w");
     if (NULL == fd)
@@ -257,6 +268,12 @@ void tc_unmonitor_leaks()
         pthread_mutex_unlock(&lock2);
     }
 
+#ifndef HAVE_TLS
+#if HAVE_PTHREAD
+    perftools_pthread_key_delete(inside_subsystem_key_);
+    inside_subsystem_key_ = 0;
+#endif
+#endif
 }
 
 static int is_recursive()
@@ -341,22 +358,21 @@ static __thread int ll_inside_subsystem
 # endif
 ;
 #endif /* #ifdef HAVE_TLS */
-static pthread_key_t inside_subsystem_key_;
 
 void tc_ll_destroy_inside_subsystem_key(void* ptr) {
     return;
 }
 
-int tc_ll_get_inside_subsystem()
+long tc_ll_get_inside_subsystem()
 {
 #ifdef HAVE_TLS
     return !! ll_inside_subsystem;
 #else /* ifdef HAVE_TLS */
-    return (int)PTHREAD_GETSPECIFIC(inside_subsystem_key_);
+    return (long)PTHREAD_GETSPECIFIC(inside_subsystem_key_);
 #endif /* ifdef HAVE_TLS */
 }
 
-void tc_ll_set_inside_subsystem(int i)
+void tc_ll_set_inside_subsystem(long i)
 {
 #ifdef HAVE_TLS
     ll_inside_subsystem = i;
