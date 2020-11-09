@@ -15,6 +15,10 @@ static FILE*        fd;
 static int          io_offload_thread_started;
 static int          thread_stopping;
 
+#ifndef HAVE_TLS
+#error "no tls available"
+#endif HAVE_TLS
+
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
